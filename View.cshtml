@@ -1,0 +1,226 @@
+
+<head>
+
+    <script src="~/Content/ui-grid/angular/angular.js"></script>
+    <script src="~/Content/ui-grid/angular/angular-touch.js"></script>
+    <script src="~/Content/ui-grid/angular/angular-animate.js"></script>
+    <script src="~/Content/ui-grid/grunt-scripts/csv.js"></script>
+    <script src="~/Content/ui-grid/grunt-scripts/pdfmake.js"></script>
+    <script src="~/Content/ui-grid/grunt-scripts/vfs_fonts.js"></script>
+    <script src="~/Content/ui-grid/grunt-scripts/lodash.min.js"></script>
+    <script src="~/Content/ui-grid/grunt-scripts/jszip.min.js"></script>
+    <script src="~/Content/ui-grid/grunt-scripts/excel-builder.dist.js"></script>
+    <script src="~/Content/ui-grid/ui-grid.core.min.js"></script>
+    <script src="~/Content/ui-grid/ui-grid.exporter.min.js"></script>
+    <script src="~/Content/ui-grid/ui-grid.selection.min.js"></script>
+
+    <script src="~/Content/ui-grid/ui-grid.js"></script>
+    <link href="~/Content/ui-grid/ui-grid.css" rel="stylesheet" />
+</head>
+<!-- start:  List Voucher page -->
+<style>
+    /*.grid {
+  width: 500px;
+  height: 200px;
+}*/
+
+
+
+</style>
+<section class="panel" ng-app="app" ng-controller="MainCtrl">
+    <header class="p-xs mr-lg">
+        <div class="row mb-md">
+            <div class="col-md-12">
+                <div class="col-md-3">
+                    @Html.Label("Voucher Type", htmlAttributes: new { @class = "control-label" })
+                    @Html.DropDownList("vType", (IEnumerable<SelectListItem>)ViewBag.vTypeList, new { @class = "form-control populate ", @Required = "required", ng_model = "vType" })
+
+                </div>
+                <div class="col-md-3">
+                    @Html.Label("Voucher Date", htmlAttributes: new { @class = "control-label" })
+                    @Html.Editor("dtFromVoucher", new { htmlAttributes = new { @class = "form-control", ng_init = "dtFrom='1-Dec-15'", @placeholder = "", ng_model = "dtFrom", datepicker = "" } })
+                    {{$scope.dtFrom}}
+                </div>
+
+                <div class="col-md-3">
+                    @Html.Label("To", htmlAttributes: new { @class = "control-label" })
+                    @Html.Editor("dtToVoucher", new { htmlAttributes = new { @class = "form-control", @placeholder = "", ng_model = "dtTo", datepicker = "", ng_init = "dtTo='1-Dec-18'" } })
+                    {{$scope.dtTo}}
+                </div>
+
+                <div class="col-sm-3 p-none mt-lg pl-md pull-left">
+                    <input type="hidden" name="flag" class="flag" value="Load" />
+                    <input type="button" class="mb-xs mt-xs mr-xs mt-sm btn  btn-info " value="Load" ng-click="DataLoad(vType,dtFrom,dtTo)">
+                </div>
+                <input type="hidden" name="vType" ng-value="vType" />
+            </div>
+
+        </div>
+
+    </header>
+    <!-- : loading..... -->
+    <div ng-show="showLoader" class="loading" style="margin: 0px; padding: 0px; position: fixed; right: 0px; top: 0px; width: 100%; height: 100%; z-index: 30001;">
+        <img src="/Content/images/loadinghr.gif" alt="loading" style="position: absolute; top: 45%; left: 45%; width: 8%;">
+    </div>
+
+
+    <div class="panel-body">
+
+        <div ui-grid="gridOptions" ui-grid-pinning ui-grid-expandable ui-grid-exporter ui-grid-selection class="grid"></div>
+    </div>
+
+    <div class="col-sm-3 p-none mt-md pl-md pull-left">
+
+        <input type="button" class="mb-xs mt-xs mr-xs mt-sm btn  btn-info " value="Submit" ng-click="SaveAccept()">
+    </div>
+</section>
+
+
+
+
+
+<script type="text/javascript">
+
+
+    var app = angular.module('app', ['ngTouch', 'ui.grid', 'ui.grid.expandable', 'ui.grid.selection', 'ui.grid.pinning','ui.grid.exporter']);
+
+    app.controller('MainCtrl', ['$scope', '$http', '$log', function ($scope, $http, $log) {
+        $scope.vType = 'JV';
+        $scope.acclist = [];
+        $scope.showLoader = false;
+
+        $scope.gridOptions = {
+
+            // EXPORT : START 
+            enableGridMenu: true,
+            enableSelectAll: true,
+            exporterCsvFilename: 'myFile.csv',
+            exporterPdfDefaultStyle: { fontSize: 7 },
+            exporterPdfTableStyle: { margin: [10, 10, 10, 10] },
+            exporterPdfTableHeaderStyle: { fontSize: 7, bold: true, italics: false, color: 'black' },
+            exporterPdfHeader: { text: "Voucher List", style: 'headerStyle', fontSize: 9, bold: false },
+            exporterPdfFooter: function (currentPage, pageCount) {
+                return { text: currentPage.toString() + ' of ' + pageCount.toString(), style: 'footerStyle' };
+            },
+            exporterPdfCustomFormatter: function (docDefinition) {
+                docDefinition.styles.headerStyle = { fontSize: 15, bold: true };
+                docDefinition.styles.footerStyle = { fontSize: 8, bold: true };
+                return docDefinition;
+            },
+            exporterPdfOrientation: 'portrait',
+            exporterPdfPageSize: 'LETTER',
+            exporterPdfMaxGridWidth: 500,
+            exporterCsvLinkElement: angular.element(document.querySelectorAll(".custom-csv-link-location")),
+            exporterExcelFilename: 'myFile.xlsx',
+            exporterExcelSheetName: 'Sheet1',
+            // EXPORT : END 
+
+                               
+            // Default : start 
+            expandableRowTemplate: "/expandableRowTemplate.html",
+            expandableRowHeight: 150,
+            expandableRowScope: {
+                subGridVariable: 'subGridScopeVariable'
+            },
+            enableFiltering: true,
+            showGridFooter: true,
+            // Default: End
+
+                             /*   SubGridOptions : Start  */
+            onRegisterApi: function (gridApi) {
+                gridApi.expandable.on.rowExpandedStateChanged($scope, function (row) {
+                    if (row.isExpanded) {
+                        row.entity.subGridOptions = {
+                            columnDefs: [
+                            { name: 'AccCode', field: 'AccCode' },
+                            { name: 'AccName', field: 'AccName' }
+                            ]
+                        };
+                        $http.get('../AcmVoucherPost/GetDetails?Id=' + row.entity.VoucherId)
+                        .then(function (data) {
+                            row.entity.subGridOptions.data = data.data;
+                        });
+                    }
+                });
+            }
+                        /*   SubGridOptions : End  */
+        }
+
+        $scope.gridOptions.columnDefs = [
+                    { field: 'isSelect',enableFiltering: false,
+                        name:"Check", width: 40, cellTemplate: '<input type="checkbox" name="isSelect" ng-model="row.entity.Check" ng-click="$event.stopPropagation();getExternalScopes().showMe(row.entity.Check)">' }
+                    , { Name: 'Id', field: 'VoucherId', width: 70 }
+                    , { name: 'Voucher No', field: 'VoucherNo' ,width: 120 }
+                    , { name: 'Account Name',field: 'AccName', width: 300 }
+                    , { name: 'Date',field: 'VoucherDate'  ,width: 100}
+                    , { field: 'Amount', width: 100 }
+                    , { name: 'Type',field: 'VoucherType', width: 60 }
+                    , { field: 'EntryUser', width: 300 }
+        ];
+
+        /*   Load  : this area load date wise  */
+
+        $scope.DataLoad = function (type, dtfrom, dtTo) {
+            console.log(dtfrom);
+            console.log(dtTo);
+            $scope.showLoader = true;
+            $http({
+                method: 'Post',
+                url: '../AcmVoucherPost/GetUnPostVoucherList',
+                data: JSON.stringify({ dtFrom: dtfrom, dtTo: dtTo, vType: type })
+            }). then(function (data) {
+                    $scope.gridOptions.data = data.data;
+                    $scope.showLoader = false;
+                }, function (error) {
+                    alert(error);
+                    console.log(error);
+                });
+        }
+
+        /*   Load  : this area Save wise  */
+
+        $scope.SaveAccept = function () {
+            $scope.selectArray = [];
+            /*  filter only check items */
+            for (var i = 0; i < $scope.gridOptions.data.length; i++) {
+                if ($scope.gridOptions.data[i].Check == true) {
+                    $scope.selectArray.push($scope.gridOptions.data[i]);
+                }
+            }
+            console.log($scope.gridOptions.data)// all grid data
+            console.log($scope.selectArray) // only check item
+
+            // finally post check item
+            $http.post("../AcmVoucherPost/IndexUnpostNew", { acclist: $scope.selectArray }).then(function (data) {
+                if (data.data == 1) {
+                    new PNotify({
+                        title: 'Notification',
+                        text: 'Data Saved Successfully.',
+                        type: 'custom',
+                        addclass: 'notification-success',
+                        icon: 'fa fa-check'
+                    });
+                    $scope.DataLoad($scope.vType, $scope.dtFrom, $scope.dtTo);
+                }
+                else {
+                    new PNotify({
+                        title: 'Notification',
+                        text: '!! Failure : ' + data.data,
+                        type: 'custom',
+                        addclass: 'notification-danger',
+                        icon: 'fa fa-exclamation-triangle'
+                    });
+                    $scope.DataLoad($scope.vType, $scope.dtFrom, $scope.dtTo);
+                }
+            },
+            function (responseData) {
+
+                console.log("Error !" + responseData);
+            });
+        };
+
+    }]);
+
+
+
+</script>
