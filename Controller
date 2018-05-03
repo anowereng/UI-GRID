@@ -1,0 +1,112 @@
+   public string GetUnPostVoucherList(string dtFrom, string dtTo, string vType)
+        {
+            SoftifySQLConnection clsCon = new SoftifySQLConnection("GTRAccounts", true);
+            DataSet dsCombo = new DataSet();
+            string sqlQuery = "EXEC prcGetDataTounPostDemo '1', '" + 2 + "', '0', '" + dtFrom + "', '" + dtTo + "', '" + vType + "' ";
+            clsCon.softifyFillDatasetUsingSQLCommand(ref dsCombo, sqlQuery);
+            DataTable dtData = (DataTable)dsCombo.Tables[0];
+            return clsCommon.JsonSerialize(dtData);
+        }
+        
+        
+             public string GetDetails(Int64 Id)
+        {
+            SoftifySQLConnection clsCon = new SoftifySQLConnection("GTRIMS", true);
+            DataSet dsCombo = new DataSet();
+            string sqlQuery = "EXEC [prcGetApprove_Details]  '" + 2 + "',  '" + Id + "' ";
+            clsCon.softifyFillDatasetUsingSQLCommand(ref dsCombo, sqlQuery);
+            DataTable dtData = (DataTable)dsCombo.Tables[0];
+            return clsCommon.JsonSerialize(dtData);
+        }
+        
+        // serialize---------
+           public static string JsonSerialize(DataTable dt)  
+        {
+            //DataTable dt = (DataTable)dsData.Tables[0];
+             
+            JavaScriptSerializer jsSerializer = new JavaScriptSerializer();
+            jsSerializer.MaxJsonLength = 500000000;
+
+            List<Dictionary<string, object>> parentRow = new List<Dictionary<string, object>>();
+            Dictionary<string, object> childRow;
+            foreach (DataRow row in dt.Rows)
+            {
+                childRow = new Dictionary<string, object>();
+                foreach (DataColumn col in dt.Columns)
+                {
+                    childRow.Add(col.ColumnName, row[col]);
+                }
+                parentRow.Add(childRow);
+            }
+
+            dt.Dispose();
+            return jsSerializer.Serialize(parentRow);
+        }
+        
+        --------------- procedure 1-----------------
+        
+        USE [GTRAccounts]
+GO
+/****** Object:  StoredProcedure [dbo].[prcGetDataTounPostDemo]    Script Date: 5/3/2018 5:15:55 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER proc [dbo].[prcGetDataTounPostDemo] @Flag tinyInt, @ComId tinyInt, @All tinyInt = 0, @FromDate smallDateTime, @ToDate smallDateTime, @vType varchar(10) = 'ALL'
+as
+If @Flag=1
+Begin
+	Select TOP(100000) 'false' as 'Check' , A.VoucherId, A.VoucherNo, Convert(varchar,A.VoucherDate,106) As VoucherDate, A.VAmount AS Amount,I.EmpName as EntryUser ,
+	Currency,'Show'as Show,A.VoucherType, AccName
+	From View_Voucher A
+	inner join tblAcc_Voucher_Main B on A.VoucherId=B.VoucherId
+	inner join GTRHRIS.dbo.tblLogin_User C on B.LUserID=C.LUserId
+	inner join GTRHRIS.dbo.tblEmp_Info I on I.empid=C.EmpId
+	where A.ComId = @ComId
+		And (
+			A.VoucherDate like Case When @All = 1 Then '%' End 
+			or A.VoucherDate Between @FromDate And @ToDate
+			)
+			AND A.VoucherType like Case When @vType = 'ALL' Then '%' ELSE @vType End 
+		And A.IsPosted = 1 
+	Order By VoucherNo Desc
+	
+	select Top 0 '' AccName, ''  Custname, ''  ccName, '' Note1, '' Note2, 0 TKDebit, 0 TKCredit,0 as Balance,0 as IsChkBalance 		
+End
+Else
+Begin
+	Select TOP 0 0 as 'Check' , 0 AS VoucherId, '' AS VoucherNo, Convert(Varchar,GETDATE(),107) AS VoucherDate, 0 as Amount, '' Currency,'Show'as Show,'' VoucherType
+	
+	select Top 0 '' AccName, ''  Custname, ''  ccName, '' Note1, '' Note2, 0 TKDebit, 0 TKCredit,0 as Balance,0 as IsChkBalance
+	--From View_Voucher
+End
+
+---------- Procedure 2-----------------
+
+USE [GTRIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[prcGetApprove_Details]    Script Date: 5/3/2018 5:16:52 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		<Ashraful Islam>
+-- alter date: <4-Sep-2012>
+-- Description:	<Product List>
+-- =============================================
+--	Exec [prcGetProductList] 2
+
+ALTER Proc[dbo].[prcGetApprove_Details] @Comid int, @Id int
+AS
+BEGIN
+
+--	=====================	Voucher Info 	===========================
+
+select voucherid, A.AccId,AccCode,AccName,Note1,Note2,TKDebit,TKCredit 
+from GTRAccounts.DBO.tblAcc_Voucher_Sub A
+inner join GTRAccounts.DBO.tblacc_coa B on A.accid=B.accid
+where voucherid = @Id and B.ComId=2
+
+END
