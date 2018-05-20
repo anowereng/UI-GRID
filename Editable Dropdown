@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <script src="angular.min.js"></script>
+    <link href="Content/ui-grid/bootstrap.min.css" rel="stylesheet" />
+    <link href="Content/ui-grid/ui-grid.min.css" rel="stylesheet" />
+    <script src="Content/ui-grid/angular/angular-touch.min.js"></script>
+    <script src="Content/ui-grid/angular/angular-animate.js"></script>
+    <script src="Content/ui-grid/grunt-scripts/csv.js"></script>
+    <script src="Content/ui-grid/grunt-scripts/pdfmake.js"></script>
+    <script src="Content/ui-grid/grunt-scripts/vfs_fonts.js"></script>
+    <script src="Content/ui-grid/grunt-scripts/lodash.min.js"></script>
+    <script src="Content/ui-grid/grunt-scripts/jszip.min.js"></script>
+    <script src="Content/ui-grid/grunt-scripts/excel-builder.dist.js"></script>
+    <script src="Content/ui-grid/ui-grid.min.js"></script>
+    <style>
+        .grid {
+            height: 60vh;
+            width: 90vh;
+        }
+    </style>
+</head>
+
+<body ng-app="app" ng-controller="MainCtrl">
+
+
+
+
+
+    <div class="row">
+        <div class="col-md-6">
+            <div ui-grid="gridOptions" class="grid" ui-grid-edit style="margin-left:100px;margin-top:50px" external-scopes="myExternalScope"></div>
+        </div>
+        {{gridOptions.data|json}}
+    </div>
+
+
+
+</body>
+</html>
+<script>
+    var app = angular.module('app', ['ngTouch', 'ui.grid', 'ui.grid.edit']);
+
+    app.controller('MainCtrl', ['$scope', '$http', '$log', function ($scope, $http, $log) {
+        $scope.vType = 'JV';
+        $scope.acclist = [];
+        $scope.showLoader = false;
+        $scope.getGender = [{
+            id: 1, name: 'male',
+            id: 2, name: 'female'
+        }]
+        $scope.genderTypes = [{ ID: 1, type: 'female' },
+  { ID: 2, type: 'female' },
+  { ID: 3, type: 'both' },
+  { ID: 4, type: 'none' },
+        ];
+
+        $scope.gridOptions = {
+            enableFiltering: true,
+            showGridFooter: true,
+            onRegisterApi: function (gridApi) {
+                grid = gridApi.grid;
+            }
+        }
+
+        $scope.gridOptions.columnDefs = [
+                    , { name: 'Name', field: 'Studentname', width: 120 }
+                    , { name: 'roll', field: 'roll', width: 300 },
+                    , {
+                        name: 'gender', field: 'gender', width: 300,
+                        cellTemplate: ' <div>' +
+                                      ' <select ng-model="row.entity.gender" data-ng-options="d as d.name for d in grid.appScope.getGender">' +
+                                      '     <option value="" selected disabled>Choose Gender</option>' +
+                                      ' </select>' +
+                                      ' </div>'
+
+                    },
+                   //{
+                   //    field: 'type', enableCellEdit: true,
+                   //    editableCellTemplate: 'temp.html'
+                   //},
+        ];
+
+        $scope.updateEntity = function (row) {
+            if (!$scope.save) {
+                $scope.save = { promise: null, pending: false, row: null };
+            }
+        }
+        $scope.gridOptions.data = [
+            { Studentname: 'anwer ullah', roll: 'cse00605301', type: 1, gender: "1"},
+            { Studentname: 'jahanara ', roll: 'cse00605302', type: 2, gender: "2"},
+            { Studentname: 'habib ', roll: 'cse00605303', type: 1, gender: 1 },
+            { Studentname: 'sumi ', roll: 'cse00605304', type: 2, gender: 2 },
+            { Studentname: 'jahangir ', roll: 'cse00605305', type: 1, gender: 1 },
+            { Studentname: 'afsana ', roll: 'cse00605306', type: 2, gender: 2 },
+            { Studentname: 'sohel ', roll: 'cse00605307', type: 1, gender: 1 },
+            { Studentname: 'sabina ', roll: 'cse00605308', type: 2, gender: 2 },
+            { Studentname: 'robin ', roll: 'cse00605309', type: 1, gender: 1 },
+        ]
+
+
+    }]);
+
+
+    //.filter('mapGender', function() {
+    //    var genderHash = {
+    //        1: 'male',
+    //        2: 'female'
+    //    };
+    //};
+
+</script>
