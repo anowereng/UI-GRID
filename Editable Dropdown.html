@@ -1,3 +1,6 @@
+
+//http://plnkr.co/edit/esWC752y8QARgQkDMaC9?p=preview
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -111,3 +114,12 @@
     //};
 
 </script>
+
+// template code
+
+<div>
+    <select ng-model="row.entity.Gender" data-ng-options="d as d.type for d in grid.appScope.genderTypes">
+        <option value="" selected disabled>Choose Gender</option>
+    </select>
+</div>
+
