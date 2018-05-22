@@ -1,0 +1,378 @@
+http://plnkr.co/edit/aBmgnNXQ4fL0npJHzsfG?p=preview
+
+@model SoftifyERP.Models.SalesPostUnpostVoucher
+@{
+    ViewBag.Title = "Bill Generate";
+}
+<header class="page-header">
+    <h2>@ViewBag.Title</h2>
+</header>
+
+
+<!-- Start : Grid Library-->
+<link href="~/Content/assets/javascripts/ng-ui-select2/select2grid.css" rel="stylesheet" />
+<script src="~/Content/assets/vendor/jquery/jquery.js"></script>
+<script src="~/Content/assets/javascripts/ng-ui-select2/select2Copy.js"></script>
+<script src="~/Content/assets/ngscripts/angular.js"></script>
+<script src="~/Content/assets/ui-grid/angular/angular-touch.js"></script>
+<script src="~/Content/assets/ui-grid/angular/angular-animate.js"></script>
+
+<script src="~/Content/assets/ui-grid/grunt-scripts/csv.js"></script>
+<script src="~/Content/assets/ui-grid/grunt-scripts/pdfmake.js"></script>
+<script src="~/Content/assets/ui-grid/grunt-scripts/vfs_fonts.js"></script>
+<script src="~/Content/assets/ui-grid/grunt-scripts/lodash.min.js"></script>
+<script src="~/Content/assets/ui-grid/grunt-scripts/jszip.min.js"></script>
+<script src="~/Content/assets/ui-grid/grunt-scripts/excel-builder.dist.js"></script>
+
+<script src="~/Content/assets/ui-grid/ui-grid.core.min.js"></script>
+<script src="~/Content/assets/ui-grid/ui-grid.exporter.min.js"></script>
+<script src="~/Content/assets/ui-grid/ui-grid.selection.min.js"></script>
+<script src="~/Content/assets/ui-grid/autoFitColumns.min.js"></script>
+<script src="~/Content/assets/ui-grid/ui-grid.js"></script>
+<link href="~/Content/assets/ui-grid/ui-grid.css" rel="stylesheet" />
+<!-- End : Grid Library-->
+<!--Error messages will be shown here-->
+@Html.Partial("_FlashMessage")
+
+@Html.ValidationMessage("CustomError")
+
+<!-- start:   List  page //ngApp ngCtrl-->
+
+@Html.AntiForgeryToken()
+
+
+<section class="panel" ng-app="app" ng-controller="MainCtrl">
+    <header class="ml-md">
+        <div class="row">
+            <div class="col-md-6">
+                @Html.Label("Customer", htmlAttributes: new { @class = "control-label" })
+                @Html.DropDownList("custId", new SelectList(ViewBag.CustList, "Id", "Name"), "-----Select Customer-----", new { @class = "form-control populate ", @Required = "required", select2 = "", style = "width:100%", ng_model = "custId" })
+            </div>
+
+            <div class="col-md-2">
+                @Html.Label("From Date", htmlAttributes: new { @class = "control-label" })
+                @Html.TextBoxFor(model => model.dtFrom, new { @class = "form-control", @ng_model = "dtFrom", @datepicker = "" })
+            </div>
+
+            <div class="col-md-2">
+                @Html.Label("To Date", htmlAttributes: new { @class = "control-label" })
+                @Html.TextBoxFor(model => model.dtTo, new { @class = "form-control", @ng_model = "dtTo", @datepicker = "" })
+            </div>
+
+            <div class="col-md-2 mt-lg">
+                <button type="button" class="mb-xs mt-xs mr-xs btn  btn-info " value="Load List" ng-click="DataLoad(dtFrom, dtTo, custId)" ng-disabled="!custId">
+                    <i class="fa fa-refresh" aria-hidden="true"></i> Load List
+                </button>
+            </div>
+        </div>
+
+    </header>
+    <hr />
+    <div ng-show="showLoader" class="loading" style="margin: 0px; padding: 0px; position: fixed; right: 0px; top: 0px; width: 50%; height: 50%; z-index: 30001;">
+        <img src="../Content/assets/images/ajax-spinner.gif" alt="loading" style="position: absolute; top: 100%; left: 10%; width: 10%;"> <span style="position: absolute; top: 95%; left: 11%; width: 10%; color: red;">Loading..</span>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+
+            <strong>Data Length:</strong> {{ gridOptions.data.length | number }}
+            <br>
+            <strong>Last Cell Edited:</strong> {{msg.lastCellEdited}}
+            <br>
+            <div ui-grid="gridOptions" ui-grid-auto-fit-columns ui-grid-resize-columns ui-grid-selection
+                 style="font-family: 'Open Sans', Arial, sans-serif; color: #595959 !important;" class="grid"></div>
+
+        </div>
+
+
+        <div class="col-md-6 mt-md pull-left">
+            <button class="btn btn-primary btn-wide mr-lg" type="button" name="btnSubmit" ng-model="Accept" ng-click="SavePostChallan()" ng-disabled="(dataForPost | filter:ChallanId).length==0">
+                Generate Bill <i class="fa fa-arrow-circle-right"></i>
+            </button>
+        </div>
+    </div>
+
+</section>
+
+
+
+
+<script type="text/javascript">
+    $(window).on('load', function () {
+        $('html').addClass('sidebar-left-collapsed');
+    });
+
+    var app = angular.module('app', ['ngTouch', 'ui.grid', 'ui.grid.autoFitColumns', 'ui.grid.selection', 'ui.grid.resizeColumns',
+        'ui.grid.selection', 'ui.grid.exporter']);
+
+    app.controller('MainCtrl', ['$scope', '$http', '$log', '$filter', '$interval', '$timeout', 'uiGridConstants','$templateCache', function ($scope, $http, $log, $filter, $interval, $timeout, uiGridConstants,$templateCache) {
+
+        $templateCache.put('ui-grid/selectionRowHeaderButtons',
+       "<div class=\"ui-grid-selection-row-header-buttons \" ng-class=\"{'ui-grid-row-selected': row.isSelected}\" >" +
+       "<span class=\"checkbox-custom checkbox-text-dark checkbox-default\">"+
+       "<input  type=\"checkbox\" ng-model=\"row.isSelected\" ng-click=\"row.isSelected=!row.isSelected;selectButtonClick(row, $event)\">" +
+       "<label id=\"{{$index}}\"></label>" +
+       "</span>"+
+      "&nbsp;</div>");
+
+
+        $templateCache.put('ui-grid/selectionSelectAllButtons',
+          "<div class=\"ui-grid-selection-row-header-buttons \" ng-class=\"{'ui-grid-all-selected': grid.selection.selectAll}\"" +
+          "ng-if=\"grid.options.enableSelectAll\">"+
+          "<span class=\"checkbox-custom checkbox-text-dark checkbox-default\">"+
+          "<input type=\"checkbox\" ng-model=\"grid.selection.selectAll\" ng-click=\"grid.selection.selectAll=!grid.selection.selectAll;headerButtonClick($event)\">" +
+           "<label id=\"{{$index}}\"></label>" +
+           "</span>" +
+          "</div>"
+        );
+
+
+        $scope.custId = '0';
+        $scope.dtFrom = $filter("date")(Date.now(), 'dd-MMM-yyyy');
+        $scope.dtTo = $filter("date")(Date.now(), 'dd-MMM-yyyy');
+
+        $scope.ChallanList = [];
+        $scope.dsList = [];
+        $scope.showLoader = false;
+
+        /*!!! ALERT : GRID CONTENT HERE  */
+
+        $http({
+            method: 'Get',
+            url: '../SalesBillGenerate/DSiteList',
+        }).
+               then(function (res) {
+                   $scope.dsList = res.data;
+               });
+
+        $scope.gridOptions = {
+            // EXPORT : START
+            enableGridMenu: true,
+            enableSelectAll: true,
+            enableColumnMenus: false,
+            enableAutoFitColumns: false,
+            //enableCellEditOnFocus: true,
+            enableSorting: true,
+
+            exporterCsvFilename: 'myFile.csv',
+            exporterPdfDefaultStyle: { fontSize: 7 },
+            exporterPdfTableStyle: { margin: [05, 05, , 05] },
+            exporterPdfTableHeaderStyle: { fontSize: 8, bold: true, italics: false, color: 'black' },
+            exporterPdfHeader: { text: "Bill Generate", style: 'headerStyle', fontSize: 14, bold: true },
+            exporterPdfFooter: function (currentPage, pageCount) {
+                return { text: currentPage.toString() + ' of ' + pageCount.toString(), style: 'footerStyle' };
+            },
+            exporterPdfCustomFormatter: function (docDefinition) {
+                docDefinition.styles.headerStyle = { margin: [20, 20, 20, 20], alignment: 'center' };
+                docDefinition.styles.footerStyle = { fontSize: 8, bold: false, alignment: 'center' };
+                return docDefinition;
+            },
+            exporterPdfOrientation: 'portrait',
+            exporterPdfPageSize: 'LETTER',
+            exporterPdfMaxGridWidth: 500,
+            exporterCsvLinkElement: angular.element(document.querySelectorAll(".custom-csv-link-location")),
+            exporterExcelFilename: 'myFile.xlsx',
+            exporterExcelSheetName: 'Sheet1',
+            // EXPORT : END
+            enableFiltering: true,
+            showGridFooter: true,
+            onRegisterApi: function (gridApi) {
+                $scope.gridApi = gridApi.grid;
+                $timeout(function () {
+                    $scope.gridApi.core.handleWindowResize();
+                }, 200)
+            }
+            // Default: End
+        }
+        $scope.gridOptions.columnDefs = [
+                              //{
+                              //    name: 'Check.', width: 120,
+                              //    cellTemplate:
+                              //             '    <span class="checkbox-custom checkbox-text-dark checkbox-default">' +
+                              //             '            <input type="checkbox" ng-model="selectedAll" ng-click="checkAll()" />' +
+                              //             '            <label id="all"></label>' +
+                              //             '    </span>'
+
+                              //},
+                              { name: 'Challan No.', field: 'ChallanNo', width: 120 }
+                            , { name: 'Vat Challan No.', field: 'VatChallanNo', width: 120 }
+                            , { name: 'Date', field: 'dtChallan', width: 90 }
+                            , { name: 'TruckNo', field: 'TruckNo', width: 120 }
+                            , { name: 'Customer', field: 'clientname', width: 150 }
+                            , { name: 'Address', field: 'CustAddress', width: 200 }
+                            , { name: 'Sales Note', field: 'SalesNote', width: 200 }
+                            , { name: 'Do No', field: 'DONo', width: 100 }
+                            , {
+                                name: 'Project Site', field: 'DSiteId', width: 200,
+                                cellTemplate: ' <div>' +
+                                              ' <select ng-model="row.entity.DSiteId" style = "min-width:200px;max-width:200px" select2="" data-ng-options="d.Id as d.Name for d in grid.appScope.dsList">' +
+                                              '     <option value="" selected>--Choose Site--</option>' +
+                                              ' </select>' +
+                                              ' </div>'
+                            }
+        ];
+
+        /*  END:    GRID CONTENT */
+
+
+
+        $scope.DataLoad = function (dtFrom, dtTo, custId) {
+            $scope.showLoader = true;
+            $http({
+                method: 'Post',
+                url: '../SalesBillGenerate/GetChallanData',
+                data: { dtFrom: dtFrom, dtTo: dtTo, custId: custId }
+            }).
+                then(function (res) {
+                    $scope.gridOptions.data = res.data;
+                    //$scope.setSelectable();
+                    $scope.showLoader = false;
+                    console.log($scope.dsList)
+                }, function (error) {
+                    alert(error);
+                    console.log(error);
+                    $scope.showLoader = false;
+                });
+        }
+
+        $scope.DataLoad($scope.dtFrom, $scope.dtTo, 0);
+
+
+        $scope.SavePostChallan = function (model) {
+            console.log("model = " + model);
+            $scope.showLoader = true;
+            $http.post("../SalesBillGenerate/Create", { model: $scope.dataForPost }).then(function (res) {
+
+                console.log("Data =" + res.data);
+                if (res.data == "Saved") {
+                    new PNotify({
+                        title: 'Notification',
+                        text: 'Data Posted Successfully.',
+                        type: 'custom',
+                        addclass: 'notification-success',
+                        icon: 'fa fa-check'
+                    });
+                    $scope.DataLoad($scope.dtFrom, $scope.dtTo, $scope.custId);
+                    $scope.showLoader = false;
+                }
+                else {
+                    new PNotify({
+                        title: 'Notification',
+                        text: '!! Failure : ' + data.data,
+                        type: 'custom',
+                        addclass: 'notification-danger',
+                        icon: 'fa fa-exclamation-triangle'
+                    });
+                    $scope.showLoader = false;
+                }
+            },
+            function (exp) {
+                console.log("Error !" + exp);
+                $scope.showLoader = false;
+            });
+        };
+
+        $scope.dataForPost = [];
+
+        //$scope.gridOptions.onRegisterApi = function (gridApi) {
+        //    $scope.gridApi = gridApi;
+
+        //    gridApi.selection.on.rowSelectionChanged($scope, function (row) {
+        //        $scope.countSelectRows = $scope.gridApi.selection.getSelectedRows().length;
+        //        $scope.dataForPost = $scope.gridApi.selection.getSelectedRows();
+        //        console.log($scope.dataForPost);
+        //    });
+
+        //    gridApi.selection.on.rowSelectionChangedBatch($scope, function (row) {
+        //        $scope.countAllRows = $scope.gridApi.selection.getSelectedRows().length;
+        //        $scope.dataForPost = $scope.gridApi.selection.getSelectedRows();
+        //        console.log($scope.dataForPost);
+        //    });
+
+        //};
+
+        //$scope.getRow = function () {
+        //    console.log($scope.flag);
+        //}
+
+        $scope.gridOptions.onRegisterApi = function (gridApi) {
+            grid = gridApi.grid;
+        }
+    }]);
+
+    //---------------------- DatePicker Use --------------
+    app.directive('datepicker', function ($filter) {
+        return {
+            restrict: 'A',
+            require: 'ngModel',
+            compile: function () {
+                return {
+                    pre: function (scope, element, attrs, ngModelCtrl) {
+                        var format, dateObj;
+                        format = (!attrs.dpFormat) ? 'dd-M-yyyy' : attrs.dpFormat;
+                        if (!attrs.initDate && !attrs.dpFormat) {
+                            dateObj = new Date();
+                            scope[attrs.ngModel] = $filter("date")(dateObj, 'dd-MMM-yyyy')
+
+                        } else if (!attrs.initDate) {
+                            // Otherwise set as the init date
+                            scope[attrs.ngModel] = attrs.initDate;
+                        } else {
+                        }
+                        $(element).datepicker({
+                            format: format,
+                        }).on('changeDate', function (ev) {
+                            scope.$apply(function () {
+                                ngModelCtrl.$setViewValue(ev.format(format));
+                            });
+                        });
+                    }
+                }
+            }
+        }
+    });
+
+    // ------------- select 2 Use ------------------------
+    app.directive("select2", function ($timeout, $parse) {
+        return {
+            restrict: 'AC',
+            require: 'ngModel',
+            link: function (scope, element, attrs) {
+                $timeout(function () {
+                    element.select2();
+                    element.select2Initialized = true;
+                });
+
+                var refreshSelect = function () {
+                    if (!element.select2Initialized) return;
+                    $timeout(function () {
+                        element.trigger('change');
+                    });
+                };
+
+                var recreateSelect = function () {
+                    if (!element.select2Initialized) return;
+                    $timeout(function () {
+                        element.select2('destroy');
+                        element.select2();
+                    });
+                };
+
+                scope.$watch(attrs.ngModel, refreshSelect);
+
+                if (attrs.ngOptions) {
+                    var list = attrs.ngOptions.match(/ in ([^ ]*)/)[1];
+                    // watch for option list change
+                    scope.$watch(list, recreateSelect);
+                }
+
+                if (attrs.ngDisabled) {
+                    scope.$watch(attrs.ngDisabled, refreshSelect);
+                }
+            }
+        };
+    });
+
+</script>
+
+
